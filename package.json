@@ -1,0 +1,128 @@
+{
+  "name": "cloud-rdp-commander",
+  "displayName": "Cloud RDP Commander",
+  "description": "Embedded RDP desktop + SFTP browser for any cloud VM — no Docker required.",
+  "version": "0.2.0",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "cloud-rdp-explorer",
+          "title": "Cloud RDP Manager",
+          "icon": "media/server.svg"
+        }
+      ]
+    },
+    "views": {
+      "cloud-rdp-explorer": [
+        {
+          "id": "cloudRdpServersView",
+          "name": "Cloud Servers & SFTP",
+          "icon": "media/server.svg"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "cloudRdp.addServer",
+        "title": "Add Cloud Server",
+        "icon": "$(add)"
+      },
+      {
+        "command": "cloudRdp.refreshTree",
+        "title": "Refresh Servers",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "cloudRdp.deleteServer",
+        "title": "Delete Server Profile",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "cloudRdp.editServer",
+        "title": "Edit Server Profile",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "cloudRdp.openEmbeddedDesktop",
+        "title": "Open Embedded RDP Desktop",
+        "icon": "$(vm)"
+      },
+      {
+        "command": "cloudRdp.openTerminal",
+        "title": "Open SSH Terminal",
+        "icon": "$(terminal)"
+      },
+      {
+        "command": "cloudRdp.openRemoteFile",
+        "title": "Open Remote File"
+      },
+      {
+        "command": "cloudRdp.killRdpSession",
+        "title": "Reset xRDP Session (Fix Black Screen)",
+        "icon": "$(debug-restart)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "cloudRdp.addServer",
+          "when": "view == cloudRdpServersView",
+          "group": "navigation"
+        },
+        {
+          "command": "cloudRdp.refreshTree",
+          "when": "view == cloudRdpServersView",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "cloudRdp.editServer",
+          "when": "view == cloudRdpServersView && viewItem == server",
+          "group": "inline@0"
+        },
+        {
+          "command": "cloudRdp.openEmbeddedDesktop",
+          "when": "view == cloudRdpServersView && viewItem == server",
+          "group": "inline@1"
+        },
+        {
+          "command": "cloudRdp.openTerminal",
+          "when": "view == cloudRdpServersView && viewItem == server",
+          "group": "inline@2"
+        },
+        {
+          "command": "cloudRdp.deleteServer",
+          "when": "view == cloudRdpServersView && viewItem == server",
+          "group": "inline@3"
+        },
+        {
+          "command": "cloudRdp.killRdpSession",
+          "when": "view == cloudRdpServersView && viewItem == server",
+          "group": "1_rdp@0"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/ssh2": "^1.15.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "agent-rdp": "^0.6.5",
+    "ssh2": "^1.15.0"
+  }
+}
