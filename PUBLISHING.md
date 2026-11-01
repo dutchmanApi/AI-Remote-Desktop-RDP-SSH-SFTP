@@ -15,7 +15,7 @@ The extension is configured for the Marketplace publisher `Sarifkhan`. The displ
    npm run package
    ```
 
-   Run these commands on each target OS. `npm run package` creates an OS/architecture-specific VSIX using that machine's native `agent-rdp` optional dependency. Never publish a macOS-built VSIX as a universal package for Windows.
+   Run these commands on each target OS. `npm run package` creates an OS/architecture-specific VSIX using that machine's native `agent-rdp` optional dependency. Supported targets are macOS x64/ARM64, Windows x64/ARM64, and Linux x64/ARM64. Never publish a build from one OS as a universal package for another.
 5. Install the generated `.vsix` in each OS using **Extensions: Install from VSIX...** and verify RDP display/input, SSH, and SFTP.
 6. Inspect the package contents and size before release:
 
@@ -41,7 +41,7 @@ The extension is configured for the Marketplace publisher `Sarifkhan`. The displ
    npm run publish
    ```
 
-   The command detects the current OS/architecture and publishes that target. Run it on macOS and Windows using the same `package.json` version. Alternatively, upload each generated target-specific VSIX from the publisher management page.
+   The command detects the current OS/architecture and publishes that target. Run it on each supported OS/architecture using the same `package.json` version. Alternatively, upload each generated target-specific VSIX from the publisher management page.
 4. Open the listing and verify its title, icon, README rendering, install instructions, and links. Marketplace indexing and install counts may take time to appear.
 5. For later releases, update `CHANGELOG.md`, increment the SemVer version in `package.json`, run the clean cross-platform checks, then package and publish again.
 
@@ -54,7 +54,7 @@ There is no reliable way to guarantee 10,000 installs in a month. Treat that as 
 ### Before launch
 
 - Add genuine screenshots or a short, captioned demo GIF showing setup, a live desktop, and the SSH/SFTP workflows. Do not use mockups that imply unimplemented features.
-- Test install, update, uninstall, credentials, and reconnect on Windows and macOS. Publish a clear known-limitations section.
+- Test install, update, uninstall, credentials, and reconnect on every OS/architecture advertised as supported. Publish a clear known-limitations section.
 - Ask a small group of cloud developers and operators to test the VSIX and report friction. Fix onboarding issues before broad promotion.
 - Prepare a 60-90 second demo, a concise project page, and one practical tutorial such as “Open a cloud VM desktop without leaving VS Code.”
 

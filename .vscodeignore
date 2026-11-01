@@ -13,5 +13,6 @@ vsc-extension-quickstart.md
 .gitattributes
 media/extension-icon.svg
 out/test/**
+test/**
 patches/**
 scripts/**

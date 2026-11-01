@@ -2,9 +2,11 @@ import * as vscode from 'vscode';
 import * as crypto from 'crypto';
 import * as path from 'path';
 import * as net from 'net';
+import { createRequire } from 'module';
 import { readFileSync } from 'fs';
 import { homedir } from 'os';
 import { Client, ClientChannel, SFTPWrapper } from 'ssh2';
+import { detectExtensionRuntime, supportedRuntimeTargets } from './platform';
 import type { RdpSession as AgentRdpSession } from 'agent-rdp' with { 'resolution-mode': 'import' };
 
 // ─────────────────────────────────────────────────────────
@@ -38,6 +40,7 @@ const SFTP_SCHEME   = 'cloudrdp-sftp';
 /** Stable per-server WebSocket ports; agent-rdp daemons persist across panels. */
 const STREAM_PORT_BASE = 10000;
 const STREAM_PORT_RANGE = 50000;
+const extensionRequire = createRequire(__filename);
 
 // ─────────────────────────────────────────────────────────
 //  State
@@ -54,6 +57,13 @@ const rdpSessions = new Map<string, AgentRdpSession>();
 // ─────────────────────────────────────────────────────────
 
 export function activate(context: vscode.ExtensionContext) {
+    const runtime = detectExtensionRuntime();
+    console.info('[cloud-rdp] Detected extension host runtime', {
+        platform: runtime.platform,
+        arch: runtime.arch,
+        displayName: runtime.displayName,
+        nativePackage: runtime.nativePackage ?? 'unsupported'
+    });
 
     // 1. SFTP Virtual FileSystem
     const sftpFsProvider = new CloudSftpFileSystemProvider(context);
@@ -181,6 +191,21 @@ export function activate(context: vscode.ExtensionContext) {
         const creds = await resolveServerCredentials(context, node?.profile);
         if (!creds) { return; }
 
+        if (!runtime.nativePackage) {
+            vscode.window.showErrorMessage(
+                `Embedded RDP is not supported on ${runtime.displayName}. Supported platforms: ${supportedRuntimeTargets().join(', ')}.`
+            );
+            return;
+        }
+        try {
+            extensionRequire.resolve(`${runtime.nativePackage}/package.json`);
+        } catch {
+            vscode.window.showErrorMessage(
+                `The RDP runtime for ${runtime.displayName} is missing. Reinstall the matching platform build of this extension.`
+            );
+            return;
+        }
+
         // agent-rdp needs a real password (SSH key auth is for SFTP/terminal only)
         if (!creds.password) {
             const pw = await vscode.window.showInputBox({
@@ -190,6 +215,22 @@ export function activate(context: vscode.ExtensionContext) {
             });
             if (!pw) { return; }
             creds.password = pw;
+        }
+
+        let sshOptions: SshConnectionOptions;
+        try {
+            sshOptions = await getSshConnectionOptions(context, creds);
+            await vscode.window.withProgress(
+                {
+                    location: vscode.ProgressLocation.Notification,
+                    title: `Preparing xRDP session on ${creds.host}…`,
+                    cancellable: false
+                },
+                () => resetXrdpSession(sshOptions, creds.username)
+            );
+        } catch (err: any) {
+            vscode.window.showErrorMessage(`Failed to prepare xRDP session: ${err.message}`);
+            return;
         }
 
         // Disconnect any previous session for this profile so we get a fresh one
@@ -244,9 +285,11 @@ export function activate(context: vscode.ExtensionContext) {
         }
 
         rdpSessions.set(creds.id, rdp);
+        let sessionReady = false;
 
         // Notify webview when panel is closed → disconnect daemon
         panel.onDidDispose(async () => {
+            sessionReady = false;
             const session = rdpSessions.get(creds.id);
             if (session) {
                 try { await session.disconnect(); } catch { /* ignore */ }
@@ -268,10 +311,12 @@ export function activate(context: vscode.ExtensionContext) {
                     height: 800
                 });
 
-                panel.webview.postMessage({ type: 'status', text: 'Connected', state: 'connected' });
+                sessionReady = true;
+                panel.webview.postMessage({ type: 'status', text: 'RDP connected; starting display stream…', state: 'connecting' });
                 panel.webview.postMessage({ type: 'stream', url: `ws://127.0.0.1:${streamPort}` });
 
             } catch (err: any) {
+                sessionReady = false;
                 const msg = err?.message ?? String(err);
                 panel.webview.postMessage({ type: 'status', text: `Error: ${msg}`, state: 'error' });
                 vscode.window.showErrorMessage(`RDP connection failed: ${msg}`);
@@ -282,7 +327,7 @@ export function activate(context: vscode.ExtensionContext) {
         // ── Relay mouse / keyboard / clipboard from webview ──
         panel.webview.onDidReceiveMessage(async (msg) => {
             const session = rdpSessions.get(creds.id);
-            if (!session) { return; }
+            if (!session || !sessionReady) { return; }
 
             try {
                 switch (msg.type) {
@@ -316,6 +361,7 @@ export function activate(context: vscode.ExtensionContext) {
                         await session.keyboard.press({ keys: 'ctrl+alt+delete' });
                         break;
                     case 'disconnect':
+                        sessionReady = false;
                         await session.disconnect();
                         rdpSessions.delete(creds.id);
                         panel.webview.postMessage({ type: 'status', text: 'Disconnected', state: 'disconnected' });
@@ -332,6 +378,14 @@ export function activate(context: vscode.ExtensionContext) {
                 }
             } catch (err: any) {
                 const message = err?.message ?? err;
+                if (/not connected to daemon/i.test(String(message))) {
+                    sessionReady = false;
+                    panel.webview.postMessage({
+                        type: 'status',
+                        text: 'The RDP daemon disconnected. Reopen the desktop to reconnect.',
+                        state: 'error'
+                    });
+                }
                 console.error(
                     msg.type === 'screenshot' ? '[cloud-rdp] screenshot failed:' : '[cloud-rdp] input relay error:',
                     message
@@ -353,21 +407,7 @@ export function activate(context: vscode.ExtensionContext) {
             { location: vscode.ProgressLocation.Notification, title: `Resetting xRDP session on ${creds.host}…`, cancellable: false },
             async () => {
                 try {
-                    const client = await connectSshWithRetry(sshOptions);
-                    await new Promise<void>((resolve, reject) => {
-                        const cmd = [
-                            `pkill -HUP -u ${creds.username} xfce4-session 2>/dev/null || true`,
-                            'sleep 1',
-                            `pkill -15 -u ${creds.username} Xorg 2>/dev/null || true`,
-                            'sleep 1',
-                            `pkill -9 -u ${creds.username} Xorg 2>/dev/null || true`,
-                            'echo DONE'
-                        ].join(' && ');
-                        client.exec(cmd, (err, stream) => {
-                            if (err) { client.end(); reject(err); return; }
-                            stream.on('close', () => { client.end(); resolve(); });
-                        });
-                    });
+                    await resetXrdpSession(sshOptions, creds.username);
                     vscode.window.showInformationMessage(`xRDP session on ${creds.host} was reset. Open Embedded Desktop to get a fresh session.`);
                 } catch (err: any) {
                     vscode.window.showErrorMessage(`Failed to reset xRDP session: ${err.message}`);
@@ -538,6 +578,12 @@ function getWebviewHtml(streamPort: number, creds: ServerCredentials): string {
   let ws = null;
   let fitMode = true;
   let lastScale = 1;
+  let frameSeen = false;
+  let screenshotSeen = false;
+  let frameCount = 0;
+  let screenshotAttempts = 0;
+  let screenshotRetryTimer = null;
+  let frameTimeout = null;
 
   // ── Status helpers ──────────────────────────────────────
   function setStatus(text, state) {
@@ -589,6 +635,59 @@ function getWebviewHtml(streamPort: number, creds: ServerCredentials): string {
       x: Math.round((e.clientX - r.left) / lastScale),
       y: Math.round((e.clientY - r.top)  / lastScale)
     };
+  }
+
+  function drawImage(src, source) {
+    const img = new Image();
+    img.onload = () => {
+      if (img.width !== canvas.width || img.height !== canvas.height) {
+        canvas.width  = img.width;
+        canvas.height = img.height;
+        applyFit();
+      }
+      ctx.drawImage(img, 0, 0);
+      const points = [
+        [Math.floor(img.width / 2), Math.floor(img.height / 2)],
+        [Math.floor(img.width / 4), Math.floor(img.height / 4)],
+        [Math.floor(img.width * 3 / 4), Math.floor(img.height / 4)],
+        [Math.floor(img.width / 4), Math.floor(img.height * 3 / 4)],
+        [Math.floor(img.width * 3 / 4), Math.floor(img.height * 3 / 4)]
+      ];
+      const samples = points.map(([x, y]) => {
+        const pixel = ctx.getImageData(x, y, 1, 1).data;
+        return [pixel[0], pixel[1], pixel[2]];
+      });
+      const litSamples = samples.filter(([red, green, blue]) => Math.max(red, green, blue) > 16).length;
+      if (litSamples === 0) {
+        console.warn('[rdp-stream] rendered image samples are all black', { source, samples });
+      } else {
+        console.info('[rdp-stream] rendered image pixel samples', { source, litSamples, samples });
+      }
+      if (source === 'screenshot') {
+        screenshotSeen = true;
+        console.info('[rdp-stream] startup screenshot rendered', { width: img.width, height: img.height });
+        if (!frameSeen) {
+          setStatus('RDP connected; screenshot received, waiting for live frames…', 'connecting');
+          hideOverlay();
+        }
+      } else if (!frameSeen) {
+        frameCount++;
+        frameSeen = true;
+        if (screenshotRetryTimer) { clearTimeout(screenshotRetryTimer); }
+        if (frameTimeout) { clearTimeout(frameTimeout); }
+        console.info('[rdp-stream] first frame rendered', { source, width: img.width, height: img.height });
+        setStatus('Connected — desktop live', 'connected');
+        hideOverlay();
+      } else {
+        frameCount++;
+      }
+      if (src.startsWith('blob:')) { URL.revokeObjectURL(src); }
+    };
+    img.onerror = () => {
+      if (src.startsWith('blob:')) { URL.revokeObjectURL(src); }
+      console.warn('[rdp-stream] invalid image frame', { source });
+    };
+    img.src = src;
   }
 
   canvas.addEventListener('mousemove', e => {
@@ -645,27 +744,44 @@ function getWebviewHtml(streamPort: number, creds: ServerCredentials): string {
     ws = new WebSocket(url);
     ws.binaryType = 'arraybuffer';
 
-    ws.onopen = () => console.log('[rdp-stream] WebSocket open');
+    ws.onopen = () => {
+      console.log('[rdp-stream] WebSocket open');
+      setStatus('RDP connected; waiting for desktop frames…', 'connecting');
+    };
     ws.onclose = (e) => console.log('[rdp-stream] closed', e.code);
-    ws.onerror = (e) => console.warn('[rdp-stream] error', e);
+    ws.onerror = (e) => {
+      console.warn('[rdp-stream] error', e);
+      setStatus('RDP display stream error', 'error');
+      showOverlay('The RDP connection opened, but its display stream failed.', true);
+    };
 
-    function drawJpeg(src) {
-      const img = new Image();
-      img.onload = () => {
-        if (img.width !== canvas.width || img.height !== canvas.height) {
-          canvas.width  = img.width;
-          canvas.height = img.height;
-          applyFit();
-        }
-        ctx.drawImage(img, 0, 0);
-        if (src.startsWith('blob:')) { URL.revokeObjectURL(src); }
-      };
-      img.onerror = () => {
-        if (src.startsWith('blob:')) { URL.revokeObjectURL(src); }
-        console.warn('[rdp-stream] invalid JPEG frame');
-      };
-      img.src = src;
+    function requestStartupScreenshot() {
+      if (frameSeen || screenshotAttempts >= 3) { return; }
+      screenshotAttempts++;
+      vscode.postMessage({ type: 'screenshot' });
+      if (screenshotAttempts < 3) {
+        screenshotRetryTimer = setTimeout(requestStartupScreenshot, 2500);
+      }
     }
+
+    requestStartupScreenshot();
+    frameTimeout = setTimeout(() => {
+      if (frameSeen) { return; }
+      console.error('[rdp-stream] no live desktop frame rendered after 15 seconds', {
+        screenshotAttempts,
+        screenshotSeen,
+        readyState: ws ? ws.readyState : 'closed'
+      });
+      setStatus(
+        screenshotSeen
+          ? 'RDP connected; live desktop stream is not updating'
+          : 'Connected, but no desktop frames received',
+        'error'
+      );
+      if (!screenshotSeen) {
+        showOverlay('RDP connected, but no desktop image has arrived. Reopen the desktop; if this keeps happening, check the Webview Console for [rdp-stream] details.', true);
+      }
+    }, 15000);
 
     ws.onmessage = (e) => {
       if (typeof e.data === 'string') {
@@ -674,7 +790,12 @@ function getWebviewHtml(streamPort: number, creds: ServerCredentials): string {
         try {
           const message = JSON.parse(e.data);
           if (message.type === 'frame' && typeof message.data === 'string') {
-            drawJpeg('data:image/jpeg;base64,' + message.data);
+            if (frameCount === 0) {
+              console.info('[rdp-stream] first frame message received', message.metadata ?? {});
+            }
+            drawImage('data:image/jpeg;base64,' + message.data, 'stream');
+          } else if (message.type === 'status') {
+            console.info('[rdp-stream] status', message);
           } else if (message.type !== 'status') {
             console.debug('[rdp-stream] ignored message', message.type);
           }
@@ -686,7 +807,7 @@ function getWebviewHtml(streamPort: number, creds: ServerCredentials): string {
 
       // Keep compatibility with daemons that send raw JPEG binary frames.
       const blob = new Blob([e.data], { type: 'image/jpeg' });
-      drawJpeg(URL.createObjectURL(blob));
+      drawImage(URL.createObjectURL(blob), 'stream');
     };
   }
 
@@ -699,24 +820,16 @@ function getWebviewHtml(streamPort: number, creds: ServerCredentials): string {
         if (msg.state === 'error') { showOverlay(msg.text, true); }
         break;
       case 'stream':
-        hideOverlay();
-        vscode.postMessage({ type: 'screenshot' });
+        setStatus('RDP connected; opening display stream…', 'connecting');
         connectStream(msg.url);
         break;
       case 'screenshot':
         // Render a one-shot screenshot (base64) into the canvas
         if (msg.base64) {
-          const img = new Image();
-          img.onload = () => {
-            if (img.width !== canvas.width || img.height !== canvas.height) {
-              canvas.width = img.width;
-              canvas.height = img.height;
-              applyFit();
-            }
-            ctx.drawImage(img, 0, 0);
-          };
           const mimeType = msg.format === 'png' ? 'image/png' : 'image/jpeg';
-          img.src = 'data:' + mimeType + ';base64,' + msg.base64;
+          drawImage('data:' + mimeType + ';base64,' + msg.base64, 'screenshot');
+        } else {
+          console.warn('[rdp-stream] screenshot response contained no image data');
         }
         break;
     }
@@ -801,6 +914,37 @@ async function connectSshWithRetry(options: SshConnectionOptions): Promise<Clien
             if (attempt >= 2) { throw new Error(`Could not allocate SSH socket to ${options.host}:22 after 3 attempts.`); }
             await new Promise(r => setTimeout(r, 250 * (attempt + 1)));
         }
+    }
+}
+
+async function resetXrdpSession(options: SshConnectionOptions, username: string): Promise<void> {
+    const client = await connectSshWithRetry(options);
+    const shellUsername = username.replace(/'/g, "'\\''");
+    const command = [
+        `pkill -HUP -u '${shellUsername}' xfce4-session 2>/dev/null || true`,
+        'sleep 1',
+        `pkill -15 -u '${shellUsername}' Xorg 2>/dev/null || true`,
+        'sleep 1',
+        `pkill -9 -u '${shellUsername}' Xorg 2>/dev/null || true`,
+        'sleep 2',
+        'echo DONE'
+    ].join(' && ');
+
+    try {
+        await new Promise<void>((resolve, reject) => {
+            client.exec(command, (err, stream) => {
+                if (err) { reject(err); return; }
+                let stderr = '';
+                stream.stderr.on('data', (data: Buffer) => { stderr += data.toString('utf8'); });
+                stream.once('error', reject);
+                stream.once('close', (code: number | null) => {
+                    if (code === 0) { resolve(); }
+                    else { reject(new Error(stderr.trim() || `Remote reset command exited with code ${code}.`)); }
+                });
+            });
+        });
+    } finally {
+        client.end();
     }
 }
 

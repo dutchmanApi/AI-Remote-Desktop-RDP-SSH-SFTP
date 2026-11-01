@@ -2,7 +2,7 @@
   "name": "ai-remote-desktop-rdp-ssh-sftp",
   "displayName": "AI Remote Desktop: RDP, SSH & SFTP",
   "description": "Embedded RDP, SSH terminal, and SFTP for cloud VMs. Powered by agent-rdp, an RDP engine designed for AI agents.",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "publisher": "Sarifkhan",
   "license": "SEE LICENSE IN LICENSE",
   "categories": [
@@ -34,6 +34,9 @@
   "engines": {
     "vscode": "^1.85.0"
   },
+  "extensionKind": [
+    "ui"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "viewsContainers": {
@@ -140,6 +143,7 @@
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
+    "test:platform": "npm run compile && node --test test/platform.test.cjs",
     "watch": "tsc -watch -p ./",
     "postinstall": "patch-package",
     "package": "node scripts/vsce-platform.mjs package",

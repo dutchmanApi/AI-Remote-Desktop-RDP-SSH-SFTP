@@ -1,12 +1,13 @@
 # Setup and testing guide
 
-This guide covers setting up the extension for development and testing it on macOS or Windows. The extension runs locally in VS Code; the remote computer must be reachable over RDP.
+This guide covers setting up the extension for development and testing it on macOS, Windows, or Linux. The extension runs in the local VS Code UI extension host, detects that host's operating system and CPU architecture at activation, and uses the matching `agent-rdp` native runtime. The remote computer must be reachable over RDP.
 
 ## Requirements
 
 - VS Code Desktop (not the browser version)
 - Node.js 22 or newer and npm
 - Git
+- A supported local extension host: macOS (Apple Silicon or Intel), Windows (x64 or ARM64), or Linux (x64 or ARM64)
 - A remote machine with RDP enabled and reachable on TCP port 3389
 - SSH on TCP port 22 if you want to test the integrated terminal, SFTP, or xRDP reset command
 
@@ -75,14 +76,31 @@ The checked-in VS Code launch configuration compiles the extension before launch
 - SSH terminal/SFTP work when the host permits SSH from the Windows test machine.
 - Close the panel, reopen it, and verify a new session can connect.
 
-The project has been tested on both macOS and Windows. Repeat the runtime checks after changes to native dependencies, RDP streaming, or packaging. If a check fails, capture the exact `npm ci`/compile output and the Extension Development Host **Output** or **Developer Tools** console error.
+## Linux setup and run
+
+1. Install Node.js 22 or newer, Git, and VS Code Desktop on Linux x64 or ARM64.
+2. Clone and open the project folder, then install and compile:
+
+   ```sh
+   git clone https://github.com/dutchmanApi/AI-Remote-Desktop-RDP-SSH-SFTP.git
+   cd AI-Remote-Desktop-RDP-SSH-SFTP
+   npm ci
+   npm run compile
+   ```
+
+3. Press **F5** to launch the Extension Development Host.
+4. Open **Cloud RDP Manager**, add a reachable server, and verify RDP display/input, SSH, and SFTP.
+
+The extension logs the selected host runtime in the Extension Host output. Supported runtime packages are macOS x64/ARM64, Windows x64/ARM64, and Linux x64/ARM64. Linux testing instructions are provided, but confirm your exact Linux distribution and architecture before publishing it as tested.
+
+Repeat runtime checks after changes to native dependencies, RDP streaming, or packaging. If a check fails, capture the exact `npm ci`/compile output and the Extension Development Host **Output** or **Developer Tools** console error.
 
 ## Troubleshooting
 
 - **Cannot connect:** Confirm the host/IP and that TCP 3389 is reachable from the test machine. For Linux targets, confirm the xRDP service is active.
 - **SSH terminal or SFTP cannot connect:** Confirm SSH is listening on TCP 22 and the server allows the test machine's source IP.
 - **Connected but blank desktop:** First verify the same host and account in another RDP client. If the other client also shows a blank screen, inspect the remote desktop session; if it works, capture the Extension Development Host console output.
-- **`EBADPLATFORM` on Windows:** Ensure the installed manifest does not include a direct dependency on `@agent-rdp/darwin-arm64`, remove stale `node_modules`, and rerun `npm ci`.
+- **`EBADPLATFORM`:** Do not add a direct dependency on a platform-specific `@agent-rdp` package. `agent-rdp` declares these as optional dependencies so npm can select the local runtime.
 - **`EADDRINUSE` from SFTP:** Refresh the server tree, close duplicate SSH terminals/tunnels, and retry. This is a local port allocation error, not evidence that RDP is unavailable.
 
 ## Package and install the extension locally
@@ -94,8 +112,8 @@ npm ci
 npm run package
 ```
 
-`npm run package` detects the local OS and architecture and asks `vsce` to set the corresponding target. Build on each OS you intend to support: an Apple Silicon Mac produces a `darwin-arm64` VSIX, and a Windows x64 machine produces a `win32-x64` VSIX. Do not upload one machine's package as a universal build.
+`npm run package` detects the local OS and architecture and asks `vsce` to set the corresponding target. Build and publish on every target you intend to support: macOS x64/ARM64, Windows x64/ARM64, and Linux x64/ARM64. The runtime cannot be cross-packaged from another OS because npm installs only the host's matching optional native dependency. Do not upload one machine's package as a universal build.
 
-Install the generated target-specific `.vsix` into VS Code using **Extensions: Install from VSIX...**. Test the packaged extension on macOS and Windows before publishing; the Extension Development Host test alone does not verify packaging.
+Install the generated target-specific `.vsix` into VS Code using **Extensions: Install from VSIX...**. Test the packaged extension on each supported OS before publishing; the Extension Development Host test alone does not verify packaging.
 
 For Marketplace submission, publisher setup, and release steps, see [PUBLISHING.md](./PUBLISHING.md).

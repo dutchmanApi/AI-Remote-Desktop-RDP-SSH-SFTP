@@ -8,7 +8,7 @@ Connect to cloud servers without leaving VS Code. Manage saved hosts in the **Cl
 - **SSH terminal** for interactive server administration.
 - **SFTP file browsing** from the server tree.
 - **Credential protection** using VS Code SecretStorage for saved passwords.
-- **Cross-platform client** for macOS and Windows, powered by the platform-specific native binary selected by `agent-rdp`.
+- **Cross-platform client** for macOS, Windows, and Linux (x64 and ARM64). At startup, the extension detects the local VS Code extension host's OS and architecture; `agent-rdp` loads the matching native runtime.
 
 The embedded desktop uses [`agent-rdp`](https://github.com/thisnick/agent-rdp), an RDP engine designed for AI agents. This extension provides a human-operated VS Code desktop and does not add an AI chat or model integration. Docker and Apache Guacamole are not required.
 
@@ -23,7 +23,7 @@ The remote server must allow connections from your device. Linux desktops need a
 
 ## Develop and test
 
-See the [setup and testing guide](./SETUP.md) for running the extension on macOS and Windows.
+See the [setup and testing guide](./SETUP.md) for running the extension on macOS, Windows, and Linux.
 
 See the [Marketplace publishing guide](./PUBLISHING.md) for packaging and submission.
 
