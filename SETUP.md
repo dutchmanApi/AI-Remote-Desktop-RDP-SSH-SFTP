@@ -5,7 +5,7 @@ This guide covers setting up the extension for development and testing it on mac
 ## Requirements
 
 - VS Code Desktop (not the browser version)
-- Node.js 20 or newer and npm
+- Node.js 22 or newer and npm
 - Git
 - A remote machine with RDP enabled and reachable on TCP port 3389
 - SSH on TCP port 22 if you want to test the integrated terminal, SFTP, or xRDP reset command
@@ -26,7 +26,7 @@ Replace `<repository-url>` with the GitHub clone URL for this project.
 
 ## macOS setup and run
 
-1. Install Node.js 20 or newer, Git, and VS Code.
+1. Install Node.js 22 or newer, Git, and VS Code.
 2. Open the project folder in VS Code.
 3. In the integrated terminal, install dependencies and compile:
 
@@ -45,7 +45,7 @@ The checked-in VS Code launch configuration compiles the extension before launch
 
 ## Windows setup and run
 
-1. Install Node.js 20 or newer for Windows, Git for Windows, and VS Code Desktop.
+1. Install Node.js 22 or newer for Windows, Git for Windows, and VS Code Desktop.
 2. Clone and open the project folder:
 
    ```powershell
@@ -63,8 +63,6 @@ The checked-in VS Code launch configuration compiles the extension before launch
 
    `agent-rdp` declares optional native binaries for Windows x64 and ARM64. Do not add a macOS-specific `@agent-rdp/darwin-arm64` dependency; npm selects the correct optional package for the development machine.
 
-   The install's `postinstall` step applies the checked-in Windows IPC compatibility patch for `agent-rdp` 0.6.5. It corrects the daemon port calculation on Windows; the macOS Unix-socket implementation is unchanged.
-
 4. Press **F5** to launch the Extension Development Host.
 5. In the development host, use **Cloud RDP Manager** to add the same reachable test server and open its embedded desktop.
 6. Verify that the desktop renders and accepts keyboard/mouse input. Also try the SSH terminal and SFTP if TCP 22 is enabled for your machine.
@@ -72,7 +70,6 @@ The checked-in VS Code launch configuration compiles the extension before launch
 ### Windows verification checklist
 
 - `npm ci` finishes without an `EBADPLATFORM` error.
-- The `agent-rdp` compatibility patch is applied during installation.
 - `npm run compile` succeeds.
 - The Extension Development Host starts without a native `agent-rdp` binary load error.
 - The embedded RDP panel shows a desktop image and receives updates.
@@ -80,7 +77,7 @@ The checked-in VS Code launch configuration compiles the extension before launch
 - SSH terminal/SFTP work when the host permits SSH from the Windows test machine.
 - Close the panel, reopen it, and verify a new session can connect.
 
-The project has been exercised on macOS. A Windows run is still needed to verify the Windows native binary and WebSocket behavior; a successful TypeScript compile on macOS does not substitute for that runtime test. If a Windows check fails, capture the exact `npm ci`/compile output and the Extension Development Host **Output** or **Developer Tools** console error.
+The project has been tested on both macOS and Windows. Repeat the runtime checks after changes to native dependencies, RDP streaming, or packaging. If a check fails, capture the exact `npm ci`/compile output and the Extension Development Host **Output** or **Developer Tools** console error.
 
 ## Troubleshooting
 
@@ -90,12 +87,15 @@ The project has been exercised on macOS. A Windows run is still needed to verify
 - **`EBADPLATFORM` on Windows:** Ensure the installed manifest does not include a direct dependency on `@agent-rdp/darwin-arm64`, remove stale `node_modules`, and rerun `npm ci`.
 - **`EADDRINUSE` from SFTP:** Refresh the server tree, close duplicate SSH terminals/tunnels, and retry. This is a local port allocation error, not evidence that RDP is unavailable.
 
-## Package the extension (optional)
+## Package and install the extension locally
 
-To create a VS Code extension package after testing:
+From the project directory, create a VSIX package:
 
 ```sh
-npx @vscode/vsce package
+npm ci
+npm run package
 ```
 
-Install the generated `.vsix` into VS Code using **Extensions: Install from VSIX...**. Test the package on each target OS; the Extension Development Host test alone does not verify packaging.
+Install the generated `.vsix` into VS Code using **Extensions: Install from VSIX...**. Test the packaged extension on macOS and Windows before publishing; the Extension Development Host test alone does not verify packaging.
+
+For Marketplace submission, publisher setup, and release steps, see [PUBLISHING.md](./PUBLISHING.md).

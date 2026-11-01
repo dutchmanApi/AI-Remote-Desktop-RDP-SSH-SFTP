@@ -1,12 +1,39 @@
 {
-  "name": "cloud-rdp-commander",
-  "displayName": "Cloud RDP Commander",
-  "description": "Embedded RDP desktop + SFTP browser for any cloud VM — no Docker required.",
+  "name": "ai-remote-desktop-rdp-ssh-sftp",
+  "displayName": "AI Remote Desktop: RDP, SSH & SFTP",
+  "description": "Embedded RDP, SSH terminal, and SFTP for cloud VMs. Powered by agent-rdp, an RDP engine designed for AI agents.",
   "version": "0.2.0",
+  "publisher": "Sarifkhan",
+  "license": "SEE LICENSE IN LICENSE",
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "AI",
+    "AI agents",
+    "RDP",
+    "Remote Desktop",
+    "SSH",
+    "SFTP",
+    "Cloud VM",
+    "Windows",
+    "Linux",
+    "Remote access",
+    "Terminal",
+    "File transfer",
+    "agent-rdp"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dutchman1999/cloud-rdp-commander"
+  },
+  "homepage": "https://github.com/dutchman1999/cloud-rdp-commander#readme",
+  "bugs": {
+    "url": "https://github.com/dutchman1999/cloud-rdp-commander/issues"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
-  "categories": ["Other"],
   "main": "./out/extension.js",
   "contributes": {
     "viewsContainers": {
@@ -112,15 +139,15 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "postinstall": "patch-package",
     "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./"
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@types/ssh2": "^1.15.0",
     "@types/vscode": "^1.85.0",
-    "patch-package": "^8.0.1",
+    "@vscode/vsce": "^4.1.0",
     "typescript": "^5.4.0"
   },
   "dependencies": {
