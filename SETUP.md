@@ -63,6 +63,8 @@ The checked-in VS Code launch configuration compiles the extension before launch
 
    `agent-rdp` declares optional native binaries for Windows x64 and ARM64. Do not add a macOS-specific `@agent-rdp/darwin-arm64` dependency; npm selects the correct optional package for the development machine.
 
+   The install's `postinstall` step applies the checked-in Windows IPC compatibility patch for `agent-rdp` 0.6.5. It corrects the daemon port calculation on Windows; the macOS Unix-socket implementation is unchanged.
+
 4. Press **F5** to launch the Extension Development Host.
 5. In the development host, use **Cloud RDP Manager** to add the same reachable test server and open its embedded desktop.
 6. Verify that the desktop renders and accepts keyboard/mouse input. Also try the SSH terminal and SFTP if TCP 22 is enabled for your machine.
@@ -70,6 +72,7 @@ The checked-in VS Code launch configuration compiles the extension before launch
 ### Windows verification checklist
 
 - `npm ci` finishes without an `EBADPLATFORM` error.
+- The `agent-rdp` compatibility patch is applied during installation.
 - `npm run compile` succeeds.
 - The Extension Development Host starts without a native `agent-rdp` binary load error.
 - The embedded RDP panel shows a desktop image and receives updates.
