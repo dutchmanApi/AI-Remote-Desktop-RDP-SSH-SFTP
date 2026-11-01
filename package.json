@@ -2,7 +2,7 @@
   "name": "ai-remote-desktop-rdp-ssh-sftp",
   "displayName": "AI Remote Desktop: RDP, SSH & SFTP",
   "description": "Embedded RDP, SSH terminal, and SFTP for cloud VMs. Powered by agent-rdp, an RDP engine designed for AI agents.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "Sarifkhan",
   "license": "SEE LICENSE IN LICENSE",
   "categories": [
@@ -25,11 +25,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/dutchman1999/cloud-rdp-commander"
+    "url": "https://github.com/dutchmanApi/AI-Remote-Desktop-RDP-SSH-SFTP"
   },
-  "homepage": "https://github.com/dutchman1999/cloud-rdp-commander#readme",
+  "homepage": "https://github.com/dutchmanApi/AI-Remote-Desktop-RDP-SSH-SFTP#readme",
   "bugs": {
-    "url": "https://github.com/dutchman1999/cloud-rdp-commander/issues"
+    "url": "https://github.com/dutchmanApi/AI-Remote-Desktop-RDP-SSH-SFTP/issues"
   },
   "engines": {
     "vscode": "^1.85.0"
@@ -141,13 +141,16 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "package": "vsce package"
+    "postinstall": "patch-package",
+    "package": "node scripts/vsce-platform.mjs package",
+    "publish": "node scripts/vsce-platform.mjs publish"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
     "@types/ssh2": "^1.15.0",
     "@types/vscode": "^1.85.0",
     "@vscode/vsce": "^4.1.0",
+    "patch-package": "^8.0.1",
     "typescript": "^5.4.0"
   },
   "dependencies": {

@@ -9,3 +9,9 @@ vsc-extension-quickstart.md
 **/*.map
 **/*.ts
 **/.vscode-test.*
+.DS_Store
+.gitattributes
+media/extension-icon.svg
+out/test/**
+patches/**
+scripts/**

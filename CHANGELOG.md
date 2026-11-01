@@ -7,3 +7,8 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 ## [Unreleased]
 
 - Initial release
+
+## [0.2.1] - 2026-11-01
+
+- Package platform-specific native RDP binaries for each operating system.
+- Apply the Windows IPC compatibility fix during dependency installation.

@@ -17,12 +17,10 @@ For a Linux remote desktop, install and configure xRDP and a desktop environment
 Clone the repository and open its folder in VS Code:
 
 ```sh
-git clone <repository-url>
-cd cloud-rdp-commander
+git clone https://github.com/dutchmanApi/AI-Remote-Desktop-RDP-SSH-SFTP.git
+cd AI-Remote-Desktop-RDP-SSH-SFTP
 code .
 ```
-
-Replace `<repository-url>` with the GitHub clone URL for this project.
 
 ## macOS setup and run
 
@@ -49,8 +47,8 @@ The checked-in VS Code launch configuration compiles the extension before launch
 2. Clone and open the project folder:
 
    ```powershell
-   git clone <repository-url>
-   cd cloud-rdp-commander
+   git clone https://github.com/dutchmanApi/AI-Remote-Desktop-RDP-SSH-SFTP.git
+   cd AI-Remote-Desktop-RDP-SSH-SFTP
    code .
    ```
 
@@ -89,13 +87,15 @@ The project has been tested on both macOS and Windows. Repeat the runtime checks
 
 ## Package and install the extension locally
 
-From the project directory, create a VSIX package:
+From the project directory, install dependencies on the target operating system and create its VSIX:
 
 ```sh
 npm ci
 npm run package
 ```
 
-Install the generated `.vsix` into VS Code using **Extensions: Install from VSIX...**. Test the packaged extension on macOS and Windows before publishing; the Extension Development Host test alone does not verify packaging.
+`npm run package` detects the local OS and architecture and asks `vsce` to set the corresponding target. Build on each OS you intend to support: an Apple Silicon Mac produces a `darwin-arm64` VSIX, and a Windows x64 machine produces a `win32-x64` VSIX. Do not upload one machine's package as a universal build.
+
+Install the generated target-specific `.vsix` into VS Code using **Extensions: Install from VSIX...**. Test the packaged extension on macOS and Windows before publishing; the Extension Development Host test alone does not verify packaging.
 
 For Marketplace submission, publisher setup, and release steps, see [PUBLISHING.md](./PUBLISHING.md).
